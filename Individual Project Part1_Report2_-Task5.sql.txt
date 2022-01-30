@@ -1,0 +1,142 @@
+SQL STATEMENTS FOR TASKS 5 FROM REPORT 2
+
+# TASK 5 - EXTERNAL DATA INTEGRATION AND RELATED QUERIES
+
+#SQL FOR CONTEXT AND PROCEDURE SECTION
+
+#Show most recent ticket purchase date
+
+SELECT Ticket.purchase_date
+FROM Ticket
+ORDER BY Ticket.purchase_date DESC;
+
+
+
+# NEW DDL (the below DDL only includes the create statements for the NEW tables that were added to the LaRonde database)
+
+CREATE TABLE `QC_COVID_CASES` (
+  `record_ID` VARCHAR (10),
+  `record_date` TIMESTAMP,
+  `in_lab` INT,
+  `by_epi_link` INT,
+  `active_cases` INT,
+  PRIMARY KEY (`record_ID`)
+);
+
+CREATE TABLE `cases_tickets` (
+  `cases_tickets_ID` INT,
+  `record_ID` VARCHAR (10),
+  `ticket_ID` INT,
+  PRIMARY KEY (`cases_tickets_ID`),
+  FOREIGN KEY (`record_ID`) REFERENCES `QC_COVID_CASES`(`record_ID`),
+  FOREIGN KEY (`ticket_ID`) REFERENCES `Ticket`(`ticket_ID`)
+);
+
+# POPULATE NEW TABLES
+
+#import csv files using phpMyAdmin import function
+
+#Remove first row from all the imported csv tables because it contains the column names from the csv
+
+DELETE FROM QC_COVID_CASEScsv LIMIT 1;
+DELETE FROM cases_ticketsCSV LIMIT 1;
+
+
+INSERT INTO QC_COVID_CASES
+SELECT * FROM QC_COVID_CASEScsv;
+
+INSERT INTO cases_tickets
+SELECT * FROM cases_ticketsCSV;
+
+
+#5 QUERIES USING NEW DATA
+
+
+#QUERY 1
+#Objective: How many daily tickets were purchased when the daily active case count was over 10,000?
+
+CREATE VIEW highactivecases AS
+SELECT DISTINCT Ticket.ticket_ID as purchased_tickets, Ticket.purchase_date, Ticket.cat_of_ticket_desc, QC_COVID_CASES.active_cases
+FROM Ticket, cases_tickets, QC_COVID_CASES
+WHERE Ticket.ticket_ID = cases_tickets.ticket_ID AND
+cases_tickets.record_ID = QC_COVID_CASES.record_ID AND
+QC_COVID_CASES.active_cases > 10000 AND
+Ticket.cat_of_ticket_desc = "Daily Pass"
+ORDER BY QC_COVID_CASES.active_cases DESC;
+
+SELECT COUNT(purchased_tickets)
+FROM highactivecases
+
+#QUERY 2
+#Objective: Were customers still using the dinning facilities when the daily active case count was over 10,000?
+
+SELECT DISTINCT Ticket.ticket_ID, Ticket.purchase_date, Ticket.cat_of_ticket_desc, QC_COVID_CASES.active_cases, facility_type, Facilities_Tickets.timestamp
+FROM Ticket, cases_tickets, QC_COVID_CASES, Facilities_Tickets,	Facility
+WHERE Ticket.ticket_ID = cases_tickets.ticket_ID AND
+cases_tickets.record_ID = QC_COVID_CASES.record_ID AND
+Ticket.ticket_ID = Facilities_Tickets.ticket_ID AND
+Facilities_Tickets.facility_ID = Facility.facility_ID AND
+Facility.facility_type = "Dinning" AND 
+QC_COVID_CASES.active_cases > 10000;
+
+#QUERY 3
+#Objective: There were high daily active case counts in the most recent two months of the imported COVID-19 data (i.e., 2020-10-08 to 2020-12-08). As this period of high active cases progressed, did more #customers decide to drive to La Ronde (i.e., purchase parking tickets)? Compare the number of parking tickets purchased in the first month of this period of high active cases, to the number of parking #tickets purchased in the second month of this period of high active cases.
+#Assumption: customers are aware of the high number of active cases and considering this when deciding how to travel to La Ronde.
+
+SELECT DISTINCT Ticket.ticket_ID, Ticket.purchase_date, Ticket.cat_of_ticket_desc, QC_COVID_CASES.active_cases
+FROM Ticket, cases_tickets, QC_COVID_CASES, Facilities_Tickets,	Facility
+WHERE Ticket.ticket_ID = cases_tickets.ticket_ID AND
+cases_tickets.record_ID = QC_COVID_CASES.record_ID AND
+Ticket.ticket_ID = Facilities_Tickets.ticket_ID AND
+Facilities_Tickets.facility_ID = Facility.facility_ID AND
+Ticket.cat_of_ticket_desc = "Parking ticket" AND 
+Ticket.purchase_date BETWEEN '2020-11-08' AND '2020-12-08';
+
+
+SELECT DISTINCT Ticket.ticket_ID, Ticket.purchase_date, Ticket.cat_of_ticket_desc, QC_COVID_CASES.active_cases
+FROM Ticket, cases_tickets, QC_COVID_CASES, Facilities_Tickets,	Facility
+WHERE Ticket.ticket_ID = cases_tickets.ticket_ID AND
+cases_tickets.record_ID = QC_COVID_CASES.record_ID AND
+Ticket.ticket_ID = Facilities_Tickets.ticket_ID AND
+Facilities_Tickets.facility_ID = Facility.facility_ID AND
+Ticket.cat_of_ticket_desc = "Parking ticket" AND 
+Ticket.purchase_date BETWEEN '2020-10-08' AND '2020-11-08'
+
+
+#QUERY 4
+
+#Objective: Quebec public health officials are investigating the impact that La Ronde had on the early stages of COVID-19 transmission in Quebec. To do so, they would like the names and contact #information of all the customers who visited La Ronde during the early stages of the spread of COVID-19 in Quebec so that they can compare them to the names of the individuals who they know tested #positive during this period. 
+
+#Assumption: Let early stages of the spread of COVID-19 be when daily active cases were between 0 and 3000.
+
+
+SELECT Customer.customer_ID, Ticket.purchase_date, Ticket.cat_of_ticket_desc, QC_COVID_CASES.active_cases, Customer.first_name, Customer.last_name, Customer.email, Customer.mobile_num
+FROM Ticket, cases_tickets, QC_COVID_CASES, Customer
+WHERE Customer.customer_ID = Ticket.customer_ID AND
+Ticket.ticket_ID = cases_tickets.ticket_ID AND
+cases_tickets.record_ID = QC_COVID_CASES.record_ID AND
+Ticket.cat_of_ticket_desc = "Daily Pass" AND
+QC_COVID_CASES.active_cases BETWEEN 0 AND 3000;
+
+#QUERY 5
+
+#Objective: Suppose that on days when the total active number of cases in Quebec is over 10,000, the government requires indoor capacity to be reduced by 20%. Show how many of La Ronde’s facilities would #have had to reduce their capacity by 20% and then what their capacity would have become after the 20% reduction.
+
+#Assumption: Facility capacity refers to the maximum number of people who can use the indoor part of a facility at one time.
+
+
+CREATE VIEW capacity_rule AS
+SELECT QC_COVID_CASES.record_date as highcases, QC_COVID_CASES.active_cases, Facility.facility_capacity as cap, Facility.facility_desc
+FROM QC_COVID_CASES, cases_tickets, Ticket, Facilities_Tickets, Facility
+WHERE Ticket.ticket_ID = cases_tickets.ticket_ID AND
+cases_tickets.record_ID = QC_COVID_CASES.record_ID AND
+Ticket.ticket_ID = Facilities_Tickets.ticket_ID AND
+Facilities_Tickets.facility_ID = Facility.facility_ID AND
+QC_COVID_CASES.active_cases > 10000
+ORDER BY QC_COVID_CASES.record_date DESC;
+
+SELECT COUNT(DISTINCT facility_desc)
+FROM capacity_rule;
+
+SELECT DISTINCT facility_desc, cap*0.8
+FROM capacity_rule
