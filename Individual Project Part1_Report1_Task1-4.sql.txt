@@ -1,0 +1,358 @@
+INDIVIDUAL PROJECT - Michael Church Carson (260683849)
+PART 1 
+
+SQL STATEMENTS FOR TASKS 1 TO 4 FROM REPORT 1
+
+#TASK2 - DDL
+
+CREATE TABLE `Customer` (
+  `customer_ID` VARCHAR (100),
+  `first_name` VARCHAR (100),
+  `last_name` VARCHAR (100),
+  `email` VARCHAR (100),
+  `mobile_num` VARCHAR (100),
+  `address` VARCHAR (100),
+  `gender` VARCHAR (100),
+  `dob`  DATE,
+  `date_of_reg` DATE,
+  `postal_code` VARCHAR (100),
+  PRIMARY KEY (`customer_ID`)
+);
+
+CREATE TABLE `Facility` (
+  `facility_ID` VARCHAR (100),
+  `facility_desc` VARCHAR (100),
+  `facility_type` VARCHAR (100),
+  `facility_capacity` INT,
+  `facility_subtype` VARCHAR (100),
+  `location` VARCHAR (100),
+  PRIMARY KEY (`facility_ID`)
+);
+
+CREATE TABLE `Ride` (
+  `ride_ID` VARCHAR (100),
+  `ride_name` VARCHAR (100),
+  `type_of_ride` VARCHAR (100),
+  `capacity_of_ride` VARCHAR (100),
+  `ride_height` VARCHAR (100),
+  `year_started` VARCHAR (4),
+  `description` VARCHAR (100),
+  `min_ride_height` VARCHAR (100),
+  `manufacturer` VARCHAR (100),
+  `top_speed` VARCHAR (100),
+  `track_length` VARCHAR (100),
+  `additional_fees` CHARACTER (1),
+  PRIMARY KEY (`ride_ID`)
+);
+
+CREATE TABLE `Ticket` (
+  `ticket_ID` INT,
+  `customer_ID` VARCHAR (100),
+  `purchase_date` DATE,
+  `promo_applied` INT,
+  `cat_of_ticket_ID` INT,
+  `cat_of_ticket_desc` VARCHAR (100),
+  `payment_method_ID` INT,
+  `payment_method_desc` VARCHAR (100),
+  `purchase_model` VARCHAR (100),
+  `price` INT,
+  PRIMARY KEY (`ticket_ID`),
+  FOREIGN KEY (`customer_ID`) REFERENCES `Customer`(`customer_ID`)
+);
+
+CREATE TABLE `Rides_Tickets` (
+  `ride_ticket_ID` INT NOT NULL AUTO_INCREMENT,
+  `ride_ID` VARCHAR (100),
+  `ticket_ID` INT,
+  `timestamp` TIMESTAMP,
+  PRIMARY KEY (`ride_ticket_ID`),
+  FOREIGN KEY (`ticket_ID`) REFERENCES `Ticket`(`ticket_ID`),
+  FOREIGN KEY (`ride_ID`) REFERENCES `Ride`(`ride_ID`)
+);
+
+CREATE TABLE `Facilities_Tickets` (
+  `facility_ticket_ID` INT NOT NULL AUTO_INCREMENT,
+  `facility_ID` VARCHAR (100),
+  `ticket_ID` INT,
+  `timestamp` TIMESTAMP,
+  PRIMARY KEY (`facility_ticket_ID`),
+  FOREIGN KEY (`ticket_ID`) REFERENCES `Ticket`(`ticket_ID`),
+  FOREIGN KEY (`facility_ID`) REFERENCES `Facility`(`facility_ID`)
+);
+
+#TASK 3 - POPULATE TABLES
+
+#import csv files using phpMyAdmin import function
+
+#Remove first row from all the imported csv tables because it contains the column names from the csv
+
+DELETE FROM CustomerCSV LIMIT 1;
+DELETE FROM FacilityCSV LIMIT 1;
+DELETE FROM TicketCSV LIMIT 1;
+DELETE FROM Facility_TicketsCSV LIMIT 1;
+DELETE FROM RideCSV LIMIT 1;
+DELETE FROM Rides_TicketCSV LIMIT 1;
+
+
+# INSERT date into relational schema tables
+
+#Remove row 1098 in Facility_TicketsCSV where the timestamp value does not exist, due to daylight savings time in EST time zone.
+# Turn off the global for key checks (set them equal to 0) so MySQL does not designate foreign keys automatically in the tables for the #imported csv files. When foreign keys are automatically designate in the csv file tables, there is an error when inserting the data from #the csv file tables into the relational schema tables.
+
+DELETE FROM Facility_TicketsCSV WHERE FACILITY_TICKET_ID = '1098';
+
+SET GLOBAL FOREIGN_KEY_CHECKS=0;
+
+INSERT INTO Customer
+SELECT * FROM CustomerCSV;
+
+INSERT INTO Facility
+SELECT * FROM FacilityCSV;
+
+INSERT INTO Ticket
+SELECT * FROM TicketCSV;
+
+INSERT INTO Ride
+SELECT * FROM RideCSV;
+
+INSERT INTO Rides_Tickets
+SELECT * FROM Rides_TicketsCSV;
+
+INSERT INTO Facilities_Tickets
+SELECT * FROM Facility_TicketsCSV;
+
+#TASK 4 CREATE 10 QUERIES
+
+#QUERY 1
+#Objective: La Ronde wants to start a student discount program for its dinning facilities to encourage students to eat at the amusement park. To promote this new student dinning discount, La Ronde wants #the contact information (email address and phone number) of all the park customers who have used a dinning facility and qualify as students. 
+#Assumption: To qualify as a student, customers must be between 18 and 25 years old (as of today, September 8, 2021). 
+
+
+SELECT DISTINCT Customer.customer_ID, email, mobile_num, facility_type, Customer.first_name, Customer.last_name, dob
+FROM Facility, Facilities_Tickets, Ticket, Customer
+WHERE Facility.facility_ID = Facilities_Tickets.facility_ID AND
+Facilities_Tickets.ticket_ID = Ticket.ticket_ID AND
+Ticket.customer_ID = Customer.customer_ID AND
+facility_type = "Dinning" AND
+dob BETWEEN '1996-09-08' AND '2003-09-08';
+
+#QUERY 2
+#Objective: La Ronde is introducing a new student discount program for its annual passes (non-promo) in 2022. The park’s management would like to give students a 20% discount on annual passes in 2022, but #before it does so it would like to better understand how this change will decrease its total revenue (in terms of dollars).
+
+#To help management, examine the last full year of ticket sales (i.e. 2020), and show how much revenue would have been lost if there had been a 20% discount for students who bought full-price annual #passes.
+
+#Assumption: To qualify as a student, customers must be between 18 and 25 years old (as of today, September 8, 2021). The student discount would only apply to annual passes purchased at full price (i.e., #with no promo-code).
+
+
+
+CREATE VIEW studentdiscount AS
+SELECT DISTINCT Customer.customer_ID, email, Customer.first_name, Customer.last_name, dob, Ticket.purchase_date, Ticket.cat_of_ticket_desc, Ticket.price as p
+FROM Ticket, Customer
+WHERE Ticket.customer_ID = Customer.customer_ID AND
+Ticket.promo_applied = 0 AND
+Ticket.cat_of_ticket_desc = "Annual Pass" AND
+Ticket.purchase_date > '2019-12-31' AND
+dob BETWEEN '1996-09-08' AND '2003-09-08';
+
+SELECT SUM(p-(p*0.8))
+FROM studentdiscount;
+
+#QUERY 3
+#Objective: What percentage of La Ronde’s total ticket revenue was from selling parking tickets?
+#Assumption: Parking ticket refers to a ticket customers buy if they want to park their car at La Ronde while visiting, and not a ticket that is given for parking illegally.
+
+
+CREATE VIEW total_revenue AS
+SELECT SUM(price) AS revenue, cat_of_ticket_desc
+FROM Ticket
+WHERE cat_of_ticket_desc = "Parking ticket"
+UNION
+SELECT SUM(price), cat_of_ticket_desc
+FROM Ticket
+WHERE cat_of_ticket_desc = "Annual pass"
+UNION
+SELECT SUM(price), cat_of_ticket_desc 
+FROM Ticket
+WHERE cat_of_ticket_desc = "Daily pass";
+
+SELECT SUM(revenue)
+FROM total_revenue;
+
+#QUERY 4
+#Objective: What is the most popular payment method (cash, credit, debit, or online), and what is the least popular payment method? Answer this query by showing the total number of customers that used #each payment method.
+#Assumption: Popularity here is determined by only counting each customer’s choice of payment method once. Even if one customer pays using cash 20 times, they would only add one to the count of customers #who pay in cash.
+
+
+
+CREATE VIEW payment_methods AS
+SELECT DISTINCT Ticket.customer_ID, payment_method_desc
+FROM Ticket;
+
+SELECT COUNT(payment_methods.customer_ID) AS paid_cash
+FROM payment_methods
+WHERE payment_method_desc = "Cash";
+
+SELECT COUNT(payment_methods.customer_ID) AS paid_credit
+FROM payment_methods
+WHERE payment_method_desc = "Credit Card";
+
+SELECT COUNT(payment_methods.customer_ID) AS paid_debit
+FROM payment_methods
+WHERE payment_method_desc = "Debit Card";
+
+SELECT COUNT(payment_methods.customer_ID) AS paid_online
+FROM payment_methods
+WHERE payment_method_desc = "Online Payment";
+
+SELECT COUNT(payment_methods.customer_ID) AS total_payments_made
+FROM payment_methods;
+
+#QUERY 5
+#Objective: Find all the rides that have started operating since the year 2000 and show which one of these rides is the most popular.
+#Assumptions: The year_started column in the Ride table indicates the year that a ride started operating, and if there is no year included in this column for a particular ride, then the year that this #ride started operating is unknown.  Popularity is determined by the total number of unique customers who take the ride. A ride is considered as taken when a customer has scanned his/her ticket and as a #result, a ticket is associated with a ride.
+
+
+
+SELECT ride_name, year_started
+FROM Ride
+WHERE year_started > '2000'
+ORDER BY year_started;
+
+CREATE VIEW newride05 AS
+SELECT DISTINCT Rides_Tickets.ticket_ID AS scanned_ticket
+FROM Ride, Rides_Tickets 
+WHERE Ride.ride_ID = Rides_Tickets.ride_ID AND
+year_started = '2005';
+
+
+SELECT COUNT(DISTINCT scanned_ticket)
+FROM newride05;
+
+CREATE VIEW newride06 AS
+SELECT DISTINCT Rides_Tickets.ticket_ID AS scanned_ticket1
+FROM Ride, Rides_Tickets
+WHERE Ride.ride_ID = Rides_Tickets.ride_ID AND
+year_started = '2006';
+
+
+SELECT COUNT(DISTINCT scanned_ticket1)
+FROM newride06;
+
+CREATE VIEW newride07 AS
+SELECT DISTINCT Rides_Tickets.ticket_ID AS scanned_ticket2
+FROM Ride, Rides_Tickets
+WHERE Ride.ride_ID = Rides_Tickets.ride_ID AND
+year_started = '2007';
+
+SELECT COUNT(DISTINCT scanned_ticket2)
+FROM newride07;
+
+#QUERY 6
+#Objective: Determine if customers with annual passes prefer to take the old or the new rides at La Ronde.
+#Assumptions: The year_started column in the Ride table indicates the year that a ride started operating, and if there is no year included in this column for a particular ride, then the year that this #ride started operating is unknown. Old rides are the ones that started operating in the least recent year in the year_started column, and new rides are the ones that started operating in the most recent #year in the year_started column.
+
+
+
+SELECT ride_name, year_started
+FROM Ride
+WHERE year_started != 'null'
+ORDER BY year_started;
+
+CREATE VIEW AnnualPass_NewRide AS
+SELECT Ticket.cat_of_ticket_desc, Ride.year_started, Ride.ride_name
+FROM Ride, Rides_Tickets, Ticket
+WHERE Ride.ride_ID = Rides_Tickets.ride_ID AND
+Rides_Tickets.ticket_ID = Ticket.ticket_ID AND
+Ride.year_started = "2007" AND
+Ticket.cat_of_ticket_desc = "Annual Pass";
+
+CREATE VIEW AnnualPass_OldRide AS
+SELECT Ticket.cat_of_ticket_desc, Ride.year_started, Ride.ride_name
+FROM Ride, Rides_Tickets, Ticket
+WHERE Ride.ride_ID = Rides_Tickets.ride_ID AND
+Rides_Tickets.ticket_ID = Ticket.ticket_ID AND
+Ride.year_started = "1967" AND
+Ticket.cat_of_ticket_desc = "Annual Pass";
+
+SELECT COUNT(AnnualPass_NewRide.cat_of_ticket_desc)
+FROM AnnualPass_NewRide;
+
+SELECT COUNT(AnnualPass_OldRide.cat_of_ticket_desc)
+FROM AnnualPass_OldRide;
+
+#QUERY 7
+#Objective: Do female or male customers like fast rides more? Determine this by counting the number of female and male customers who have taken the fastest ride at La Ronde.
+#Assumption: the fastest ride is the one with the highest known top speed.
+
+
+
+SELECT MAX(top_speed), ride_name
+FROM Ride
+WHERE top_speed != 'null'
+GROUP BY ride_name
+
+CREATE VIEW SpeedyFemales AS 
+SELECT DISTINCT Customer.customer_ID as F, ride_name, top_speed, Customer.gender
+FROM Ride, Rides_Tickets, Ticket, Customer
+WHERE Ride.ride_ID = Rides_Tickets.ride_ID AND
+Rides_Tickets.ticket_ID = Ticket.ticket_ID AND
+Ticket.customer_ID = Customer.customer_ID AND
+top_speed = '80'AND
+Customer.gender = "Female";
+
+CREATE VIEW SpeedyMales AS
+SELECT DISTINCT Customer.customer_ID as M, ride_name, top_speed, Customer.gender
+FROM Ride, Rides_Tickets, Ticket, Customer
+WHERE Ride.ride_ID = Rides_Tickets.ride_ID AND
+Rides_Tickets.ticket_ID = Ticket.ticket_ID AND
+Ticket.customer_ID = Customer.customer_ID AND
+top_speed = '80' AND
+Customer.gender = "Male";
+
+SELECT COUNT(SpeedyFemales.F)
+FROM SpeedyFemales;
+
+SELECT COUNT(SpeedyMales.M)
+FROM SpeedyMales;
+
+#QUERY 8
+#Objective: The Emporium facility would like to begin offering parking validation to customers who shop there while they are at La Ronde. To launch this parking validation program, Emporium’s management #would like to contact all the customers who have shopped at Emporium and purchased parking so that they can send out an advertisement telling these customers that they can validate their parking if they #park and shop at Emporium again in the future.
+
+#Show all the customers (name and contact information) who have paid for parking and then shopped at Emporium.
+
+
+SELECT DISTINCT Customer.customer_ID, email, mobile_num, facility_desc, Customer.first_name, Customer.last_name, Ticket.cat_of_ticket_desc
+FROM Facility, Facilities_Tickets, Ticket, Customer
+WHERE Facility.facility_ID = Facilities_Tickets.facility_ID AND
+Facilities_Tickets.ticket_ID = Ticket.ticket_ID AND
+Ticket.customer_ID = Customer.customer_ID AND
+facility_desc = "Emporium" AND
+Ticket.cat_of_ticket_desc = "Parking ticket";
+
+
+#QUERY 9
+#Objective: The management of the Photo Goliath facility is cleaning out its lost and found from last year (2020), and there is a briefcase with the initials M.A. on it. Show the manager the contact #information and full name of all the customer(s) who this briefcase could belong to.
+
+SELECT Customer.customer_ID, email, mobile_num, facility_desc, Facilities_Tickets.timestamp, Customer.first_name, Customer.last_name
+FROM Facility, Facilities_Tickets, Ticket, Customer
+WHERE Facility.facility_ID = Facilities_Tickets.facility_ID AND
+Facilities_Tickets.ticket_ID = Ticket.ticket_ID AND
+Ticket.customer_ID = Customer.customer_ID AND
+facility_desc = "Photo Goliath" AND
+Facilities_Tickets.timestamp > "2019-12-31" AND
+first_name LIKE "M%" AND
+last_name LIKE "A%"
+ORDER BY last_name;
+
+#QUERY 10
+#Objective: La Ronde’s management is considering a 10% discount for all customers who are associated with American universities to encourage them to travel to Montreal to visit the park. To help #management evaluate the possibility of staring such a discount program, show them the total revenue (in dollars) that would have been lost if every past customer who paid for a ticket and used a “.edu” #email address was given 10% off.
+#Assumption: An “.edu” email address indicates that a customer is associated (student, staff, faculty, etc.) with and American university.
+
+CREATE VIEW edu AS
+SELECT Customer.customer_ID, Customer.first_name, Customer.last_name, Customer.email, Ticket.price as p
+FROM Ticket, Customer
+WHERE Customer.customer_ID = Ticket.customer_ID AND
+Customer.email LIKE "%edu";
+
+SELECT SUM(p-(p*0.9))
+FROM edu;
